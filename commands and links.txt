@@ -1,0 +1,13 @@
+https://github.com/venuprasaddmk08/MailSentry.git
+
+mkdir MailSentry
+cd MailSentry
+git init
+
+git add .gitignore
+git commit -m "Initial commit"
+git branch -M main
+git remote add origin https://github.com/venuprasaddmk08/MailSentry.git
+git push -u origin main
+
+z5CBKIkNQdaM2SFEkXJCZKuBWhtxoFNDPgEeUXkVaUU=

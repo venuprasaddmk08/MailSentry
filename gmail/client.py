@@ -43,3 +43,7 @@ def get_body(message: dict) -> str:
         if part.get("mimeType") == "text/plain" and "data" in part.get("body", {}):
             return base64.urlsafe_b64decode(part["body"]["data"]).decode("utf-8", errors="replace")
     return ""
+
+def get_user_email(service):
+    profile = service.users().getProfile(userId="me").execute()
+    return profile["emailAddress"]
