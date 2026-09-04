@@ -1,13 +1,20 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 
-from auth.oauth import start_login, complete_login
-from auth.crypto import encrypt_token, decrypt_token
+from analysis.auth_parser import parse_auth_results
+from analysis.geoip_lookup import lookup_ip
+from analysis.ip_extractor import extract_ips
+from auth.crypto import decrypt_token, encrypt_token
+from auth.oauth import complete_login, start_login
+from db.database import get_user, init_db, save_email, save_user
 from gmail.client import (
-    get_gmail_service, fetch_email_list, fetch_full_message,
-    parse_headers, get_body, get_user_email
+    fetch_email_list,
+    fetch_full_message,
+    get_body,
+    get_gmail_service,
+    get_user_email,
+    parse_headers,
 )
-from db.database import init_db, save_user, get_user, save_email
 
 app = FastAPI()
 init_db()
@@ -52,7 +59,7 @@ def list_emails(user_email: str):
         return {"error": "User not found — log in first via /auth/login"}
 
     creds_dict = {
-        "token": None,  # will be refreshed automatically using refresh_token
+        "token": None,
         "refresh_token": decrypt_token(user["encrypted_refresh_token"]),
         "client_id": user["client_id"],
         "client_secret": user["client_secret"],
@@ -68,6 +75,19 @@ def list_emails(user_email: str):
         headers = parse_headers(full)
         body = get_body(full)
         save_email(user_email, msg["id"], headers, body)
-        results.append({**headers, "body_preview": body[:200]})
+
+        auth = parse_auth_results(headers["authentication_results"])
+        ips = extract_ips(headers["received"])
+        geo_data = [lookup_ip(ip) for ip in ips]
+
+        results.append({
+            **headers,
+            "body_preview": body[:200],
+            "spf": auth["spf"],
+            "dkim": auth["dkim"],
+            "dmarc": auth["dmarc"],
+            "sender_ips": ips,
+            "geo": geo_data,
+        })
 
     return results
