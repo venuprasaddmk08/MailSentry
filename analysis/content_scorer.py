@@ -86,14 +86,17 @@ def calculate_risk_score(auth: dict, content: dict) -> dict:
     if auth["dmarc"] == "fail":
         auth_score += 20
 
-    total = min(auth_score + content["content_risk_score"] * 0.5, 100)
+    # Give content signals full weight instead of halving them
+    total = min(auth_score + content["content_risk_score"], 100)
 
-    if total >= 70:
+    if total >= 60:
         level = "high"
-    elif total >= 40:
+    elif total >= 30:
         level = "medium"
     else:
         level = "low"
+
+    print(f"DEBUG: auth_score={auth_score}, content_risk_score={content['content_risk_score']}, total={total}, level={level}")
 
     return {
         "risk_score": round(total, 1),

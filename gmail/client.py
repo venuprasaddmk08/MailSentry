@@ -13,9 +13,10 @@ def get_gmail_service(creds_dict: dict):
     )
     return build("gmail", "v1", credentials=creds)
 
-def fetch_email_list(service, max_results=20):
+def fetch_email_list(service, max_results=20, include_spam=False):
+    query = "in:anywhere" if include_spam else ""
     resp = service.users().messages().list(
-        userId="me", maxResults=max_results
+        userId="me", maxResults=max_results, q=query
     ).execute()
     return resp.get("messages", [])
 

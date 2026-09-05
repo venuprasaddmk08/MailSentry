@@ -68,7 +68,7 @@ def list_emails(user_email: str):
     }
 
     service = get_gmail_service(creds_dict)
-    messages = fetch_email_list(service, max_results=5)
+    messages = fetch_email_list(service, max_results=5, include_spam=True)
 
     results = []
     for msg in messages:
