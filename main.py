@@ -4,6 +4,7 @@ from fastapi.responses import RedirectResponse
 from analysis.auth_parser import parse_auth_results
 from analysis.geoip_lookup import lookup_ip
 from analysis.ip_extractor import extract_ips
+from analysis.content_scorer import calculate_content_score, calculate_risk_score
 from auth.crypto import decrypt_token, encrypt_token
 from auth.oauth import complete_login, start_login
 from db.database import get_user, init_db, save_email, save_user
@@ -79,6 +80,8 @@ def list_emails(user_email: str):
         auth = parse_auth_results(headers["authentication_results"])
         ips = extract_ips(headers["received"])
         geo_data = [lookup_ip(ip) for ip in ips]
+        content = calculate_content_score(headers["subject"], body, headers["from"])
+        risk = calculate_risk_score(auth, content)
 
         results.append({
             **headers,
@@ -88,6 +91,8 @@ def list_emails(user_email: str):
             "dmarc": auth["dmarc"],
             "sender_ips": ips,
             "geo": geo_data,
+            "content": content,
+            "risk": risk,
         })
 
     return results

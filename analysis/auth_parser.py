@@ -1,5 +1,6 @@
 import re
 
+
 def parse_auth_results(auth_header: str | None) -> dict:
     if not auth_header:
         return {"spf": "none", "dkim": "none", "dmarc": "none"}
