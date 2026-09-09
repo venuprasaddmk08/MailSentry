@@ -1,4 +1,6 @@
-import re
+﻿import re
+from urllib.parse import urlparse
+from analysis.ai_scorer import score_with_ai
 
 URGENCY_PHRASES = [
     "act now", "urgent", "immediately", "verify your account",
@@ -12,7 +14,7 @@ def score_urgency(subject: str, body: str) -> dict:
     matches = [phrase for phrase in URGENCY_PHRASES if phrase in text]
     return {
         "matched_phrases": matches,
-        "urgency_score": min(len(matches) * 15, 100),  # cap at 100
+        "urgency_score": min(len(matches) * 15, 100),
     }
 
 def extract_links(body: str) -> list[str]:
@@ -27,8 +29,13 @@ def score_links(body: str) -> dict:
             suspicious.append(link)
         elif any(shortener in link for shortener in ["bit.ly", "tinyurl", "t.co", "goo.gl"]):
             suspicious.append(link)
-        elif link.count(".") > 4:  # excessive subdomains, e.g. secure.login.paypal.verify.xyz.com
-            suspicious.append(link)
+        else:
+            # Only count dots in the hostname itself, not the full URL —
+            # legitimate redirect/tracking links (go.microsoft.com/fwlink/?...)
+            # have many dots in query strings but a normal domain.
+            hostname = urlparse(link).hostname or ""
+            if hostname.count(".") > 3:  # e.g. secure.login.paypal.verify.xyz.com
+                suspicious.append(link)
 
     return {
         "total_links": len(links),
@@ -54,7 +61,6 @@ def score_sender_mismatch(display_name: str, from_email: str) -> dict:
     }
 
 def calculate_content_score(subject: str, body: str, from_header: str) -> dict:
-    # from_header looks like: "Google Play <googleplay-noreply@google.com>"
     match = re.match(r'^"?([^"<]*)"?\s*<(.+)>$', from_header or "")
     display_name = match.group(1).strip() if match else ""
     from_email = match.group(2).strip() if match else (from_header or "")
@@ -77,7 +83,7 @@ def calculate_content_score(subject: str, body: str, from_header: str) -> dict:
         "content_risk_score": round(total, 1),
     }
 
-def calculate_risk_score(auth: dict, content: dict) -> dict:
+def calculate_risk_score(auth: dict, content: dict, subject: str = "", body: str = "", from_header: str = "") -> dict:
     auth_score = 0
     if auth["spf"] == "fail":
         auth_score += 30
@@ -85,9 +91,20 @@ def calculate_risk_score(auth: dict, content: dict) -> dict:
         auth_score += 30
     if auth["dmarc"] == "fail":
         auth_score += 20
-
-    # Give content signals full weight instead of halving them
     total = min(auth_score + content["content_risk_score"], 100)
+
+    ai_result = None
+    if 20 <= total <= 80:
+        ai_result = score_with_ai(
+            subject=subject,
+            body=body,
+            from_header=from_header,
+            spf=auth["spf"],
+            dkim=auth["dkim"],
+            dmarc=auth["dmarc"],
+        )
+        if ai_result:
+            total = ai_result["ai_risk_score"]
 
     if total >= 60:
         level = "high"
@@ -96,9 +113,12 @@ def calculate_risk_score(auth: dict, content: dict) -> dict:
     else:
         level = "low"
 
-    print(f"DEBUG: auth_score={auth_score}, content_risk_score={content['content_risk_score']}, total={total}, level={level}")
-
-    return {
+    result = {
         "risk_score": round(total, 1),
         "risk_level": level,
     }
+    if ai_result:
+        result["ai_verdict"] = ai_result["verdict"]
+        result["ai_reasoning"] = ai_result["reasoning"]
+        result["ai_red_flags"] = ai_result["red_flags"]
+    return result

@@ -1,4 +1,4 @@
-import base64
+﻿import base64
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
@@ -13,17 +13,22 @@ def get_gmail_service(creds_dict: dict):
     )
     return build("gmail", "v1", credentials=creds)
 
-def fetch_email_list(service, max_results=20, include_spam=False):
+def fetch_email_list(service, max_results=20, include_spam=False, page_token=None):
     query = "in:anywhere" if include_spam else ""
-    resp = service.users().messages().list(
-        userId="me", maxResults=max_results, q=query
-    ).execute()
-    return resp.get("messages", [])
+    request_params = {"userId": "me", "maxResults": max_results, "q": query}
+    if page_token:
+        request_params["pageToken"] = page_token
+
+    resp = service.users().messages().list(**request_params).execute()
+    return resp.get("messages", []), resp.get("nextPageToken")
 
 def fetch_full_message(service, msg_id):
     return service.users().messages().get(
         userId="me", id=msg_id, format="full"
     ).execute()
+
+def fetch_full_messages_sequential(service, message_ids):
+    return [fetch_full_message(service, msg_id) for msg_id in message_ids]
 
 def parse_headers(message: dict) -> dict:
     headers = message["payload"]["headers"]
@@ -48,3 +53,39 @@ def get_body(message: dict) -> str:
 def get_user_email(service):
     profile = service.users().getProfile(userId="me").execute()
     return profile["emailAddress"]
+
+def get_total_email_count(service, include_spam=True):
+    """Fast but approximate — Gmail's own estimate, not exact."""
+    query = "in:anywhere" if include_spam else ""
+    resp = service.users().messages().list(userId="me", maxResults=1, q=query).execute()
+    return resp.get("resultSizeEstimate", 0)
+
+def get_exact_email_count(service, include_spam=True):
+    """
+    Slower but exact — paginates through all message IDs and counts them.
+    Only fetches IDs (not full content), so it's much lighter than a full scan,
+    but still makes one API call per 500 messages.
+    """
+    query = "in:anywhere" if include_spam else ""
+    total = 0
+    page_token = None
+
+    while True:
+        request_params = {
+            "userId": "me",
+            "maxResults": 500,
+            "q": query,
+            "fields": "messages/id,nextPageToken",
+        }
+        if page_token:
+            request_params["pageToken"] = page_token
+
+        resp = service.users().messages().list(**request_params).execute()
+        messages = resp.get("messages", [])
+        total += len(messages)
+
+        page_token = resp.get("nextPageToken")
+        if not page_token:
+            break
+
+    return total

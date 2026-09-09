@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MailSentry</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    background: #0a0a0f;
+    color: #e6e6e6;
+    margin: 0;
+    padding: 30px 40px;
+  }
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand img { width: 44px; height: 44px; border-radius: 10px; }
+  .brand h1 { margin: 0; font-size: 20px; color: #fff; }
+  .brand p { margin: 0; font-size: 13px; color: #888; }
+
+  .stat-row { display: flex; gap: 14px; }
+  .stat-card {
+    background: #131319;
+    border: 1px solid #222;
+    border-radius: 10px;
+    padding: 10px 22px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s;
+    min-width: 90px;
+  }
+  .stat-card:hover { border-color: #555; }
+  .stat-card.active { border-color: #7c6cf0; }
+  .stat-card h2 { margin: 0; font-size: 22px; }
+  .stat-card p { margin: 2px 0 0; font-size: 11px; color: #888; letter-spacing: 0.5px; }
+  .stat-high h2 { color: #ff5c5c; }
+  .stat-medium h2 { color: #ffb84d; }
+  .stat-low h2 { color: #4ddb8f; }
+  .stat-scanned h2 { color: #e6e6e6; }
+  .stat-note { font-size: 9px; color: #666; margin-top: 2px; }
+  .stat-note.exact { color: #6c5ce7; }
+
+  .scan-bar {
+    background: #131319;
+    border: 1px solid #222;
+    border-radius: 10px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .scan-bar button {
+    background: #6c5ce7;
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .scan-bar button:hover { background: #7d6ef0; }
+  .scan-bar button:disabled { opacity: 0.5; cursor: default; }
+  .scan-bar button.secondary {
+    background: #1e1e26; color: #ccc; font-weight: 500; font-size: 13px; padding: 9px 16px;
+  }
+  .scan-bar button.secondary:hover { background: #2a2a35; }
+  .progress-track {
+    flex: 1;
+    min-width: 150px;
+    height: 8px;
+    background: #22222a;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #6c5ce7, #a78bfa);
+    width: 0%;
+    transition: width 0.3s;
+  }
+  .scan-status { font-size: 13px; color: #999; white-space: nowrap; }
+
+  .page-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .page-bar .left, .page-bar .right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .page-bar label { font-size: 13px; color: #999; }
+  .page-bar select, .page-bar input[type="number"] {
+    background: #131319; color: #e6e6e6; border: 1px solid #2a2a35;
+    border-radius: 6px; padding: 6px 10px; font-size: 13px;
+  }
+  .page-bar input[type="number"] { width: 70px; }
+  .page-bar button {
+    background: #131319; color: #ccc; border: 1px solid #2a2a35;
+    border-radius: 6px; padding: 7px 14px; font-size: 13px; cursor: pointer;
+  }
+  .page-bar button:hover:not(:disabled) { border-color: #6c5ce7; }
+  .page-bar button:disabled { opacity: 0.35; cursor: default; }
+  .page-info { font-size: 13px; color: #888; }
+  .pages-scanned-note { font-size: 12px; color: #6c5ce7; }
+
+  .email-list { display: flex; flex-direction: column; gap: 10px; min-height: 60px; }
+  .email-card {
+    background: #131319;
+    border: 1px solid #1e1e26;
+    border-left: 4px solid #444;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .email-card.high { border-left-color: #ff5c5c; }
+  .email-card.medium { border-left-color: #ffb84d; }
+  .email-card.low { border-left-color: #4ddb8f; }
+
+  .email-row {
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+  }
+  .email-row:hover { background: #17171f; }
+
+  .avatar {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: #1e1e26;
+    color: #aaa;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .email-info { flex: 1; min-width: 0; }
+  .email-sender { font-weight: 600; font-size: 14px; color: #fff; }
+  .email-sender span { color: #999; font-weight: 400; }
+  .email-subject {
+    font-size: 13px; color: #999;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-top: 2px;
+  }
+  .ai-note {
+    margin-top: 6px; font-size: 12px; color: #a9a3f0;
+    background: #191926; padding: 6px 10px; border-radius: 6px;
+  }
+  .badge {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    display: flex; align-items: center; gap: 6px;
+    flex-shrink: 0;
+  }
+  .badge::before {
+    content: "";
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .badge.high { background: #2a1414; color: #ff5c5c; }
+  .badge.high::before { background: #ff5c5c; }
+  .badge.medium { background: #2a2214; color: #ffb84d; }
+  .badge.medium::before { background: #ffb84d; }
+  .badge.low { background: #142a1e; color: #4ddb8f; }
+  .badge.low::before { background: #4ddb8f; }
+  .chevron { color: #666; font-size: 12px; transition: transform 0.15s; flex-shrink: 0; }
+  .chevron.open { transform: rotate(90deg); }
+
+  .email-details {
+    display: none;
+    padding: 0 18px 18px 72px;
+    border-top: 1px solid #1e1e26;
+  }
+  .email-details.open { display: block; }
+  .detail-section { margin-top: 14px; }
+  .detail-section h4 {
+    margin: 0 0 8px; font-size: 11px; color: #777;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .detail-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+  }
+  .detail-item {
+    background: #0e0e14; border: 1px solid #1e1e26; border-radius: 8px;
+    padding: 8px 12px; font-size: 12px;
+  }
+  .detail-item .label { color: #777; margin-bottom: 2px; }
+  .detail-item .value { color: #e6e6e6; font-weight: 600; }
+  .value.pass { color: #4ddb8f; }
+  .value.fail { color: #ff5c5c; }
+  .geo-item {
+    background: #0e0e14; border: 1px solid #1e1e26; border-radius: 8px;
+    padding: 8px 12px; font-size: 12px; margin-bottom: 6px;
+  }
+  .flag-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .flag-chip {
+    background: #2a1414; color: #ff8a8a; font-size: 11px;
+    padding: 4px 10px; border-radius: 12px;
+  }
+  .body-preview-box {
+    background: #0e0e14; border: 1px solid #1e1e26; border-radius: 8px;
+    padding: 10px 12px; font-size: 12px; color: #aaa; white-space: pre-wrap;
+  }
+
+  .loading-text { color: #888; font-size: 13px; padding: 20px 0; text-align: center; }
+
+  #login-prompt { text-align: center; margin-top: 120px; }
+  #login-prompt a {
+    display: inline-block; margin-top: 14px;
+    background: #6c5ce7; color: #fff; padding: 10px 24px;
+    border-radius: 8px; text-decoration: none; font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<div id="login-prompt" style="display:none;">
+  <h1>MailSentry</h1>
+  <p style="color:#888;">Log in to view your phishing risk dashboard.</p>
+  <a href="/auth/login">Log in with Google</a>
+</div>
+
+<div id="dashboard-content" style="display:none;">
+  <div class="header">
+    <div class="brand">
+      <img src="/static/logo.png" alt="MailSentry">
+      <div>
+        <h1>MailSentry</h1>
+        <p>Phishing risk dashboard</p>
+      </div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-card stat-high" data-level="high" onclick="setFilter('high')">
+        <h2 id="stat-high">-</h2><p>HIGH</p>
+      </div>
+      <div class="stat-card stat-medium" data-level="medium" onclick="setFilter('medium')">
+        <h2 id="stat-medium">-</h2><p>MEDIUM</p>
+      </div>
+      <div class="stat-card stat-low" data-level="low" onclick="setFilter('low')">
+        <h2 id="stat-low">-</h2><p>LOW</p>
+      </div>
+      <div class="stat-card stat-scanned" data-level="" onclick="setFilter('')">
+        <h2 id="stat-scanned-total">-</h2><p>ALL MAIL</p>
+        <div class="stat-note" id="stat-total-note">estimate</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scan-bar">
+    <button id="scan-btn" onclick="scanAll()">Scan Entire Inbox</button>
+    <button id="exact-count-btn" class="secondary" onclick="refreshExactCount()">Get exact count</button>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+    <div class="scan-status" id="scan-status">0 of 0 emails scanned</div>
+  </div>
+
+  <div class="page-bar">
+    <div class="left">
+      <label for="page-size">Emails per page</label>
+      <select id="page-size" onchange="onPageSizeChange()">
+        <option value="10" selected>10</option>
+        <option value="25">25</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+      </select>
+      <span class="page-info" id="page-info"></span>
+      <span class="pages-scanned-note" id="pages-scanned-note"></span>
+    </div>
+    <div class="right" id="live-pagination">
+      <button id="prev-btn" onclick="goPrevPage()">Previous</button>
+      <button id="next-btn" onclick="goNextPage()">Next</button>
+
+      <label for="scan-till-input">Scan till page:</label>
+      <input type="number" id="scan-till-input" min="1" placeholder="e.g. 5">
+      <button id="scan-till-btn" onclick="scanTillPageFromInput()">Go</button>
+
+      <label for="visited-page-input">Jump to already scanned page:</label>
+      <input type="number" id="visited-page-input" min="1" placeholder="e.g. 3">
+      <button id="visited-page-btn" onclick="goToVisitedPageFromInput()">Go</button>
+    </div>
+  </div>
+
+  <div class="email-list" id="email-list"></div>
+</div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const userEmail = params.get("user_email");
+let currentFilter = "";
+let pageSize = 10;
+let tokenHistory = [null];
+let pageIndex = 0;
+let nextTokenAvailable = null;
+
+if (!userEmail) {
+  document.getElementById("login-prompt").style.display = "block";
+} else {
+  document.getElementById("dashboard-content").style.display = "block";
+  loadStats();
+  loadCurrentPage();
+}
+
+function updatePagesScannedNote() {
+  document.getElementById("pages-scanned-note").textContent =
+    `${tokenHistory.length} page${tokenHistory.length === 1 ? "" : "s"} scanned so far`;
+}
+
+function setFilter(level) {
+  currentFilter = level;
+  document.querySelectorAll(".stat-card").forEach(el => {
+    el.classList.toggle("active", el.dataset.level === level);
+  });
+  document.getElementById("live-pagination").style.display = level ? "none" : "flex";
+
+  if (level) {
+    loadFilteredEmails(level);
+  } else {
+    tokenHistory = [null];
+    pageIndex = 0;
+    loadCurrentPage();
+  }
+}
+
+function onPageSizeChange() {
+  pageSize = parseInt(document.getElementById("page-size").value, 10);
+  tokenHistory = [null];
+  pageIndex = 0;
+  loadCurrentPage();
+}
+
+async function loadStats() {
+  const res = await fetch(`/stats?user_email=${encodeURIComponent(userEmail)}`);
+  const data = await res.json();
+  document.getElementById("stat-high").textContent = data.high ?? 0;
+  document.getElementById("stat-medium").textContent = data.medium ?? 0;
+  document.getElementById("stat-low").textContent = data.low ?? 0;
+  document.getElementById("stat-scanned-total").textContent = data.total ?? 0;
+  document.getElementById("stat-total-note").textContent = data.total_is_exact ? "exact" : "estimate";
+  document.getElementById("stat-total-note").classList.toggle("exact", !!data.total_is_exact);
+  document.getElementById("scan-status").textContent =
+    `${data.scanned ?? 0} of ${data.total ?? 0} emails scanned${data.total_is_exact ? "" : " (estimate)"}`;
+  if (data.total) {
+    const pct = Math.min(100, (data.scanned / data.total) * 100);
+    document.getElementById("progress-fill").style.width = pct + "%";
+  }
+}
+
+async function refreshExactCount() {
+  const btn = document.getElementById("exact-count-btn");
+  btn.disabled = true;
+  const originalText = btn.textContent;
+  btn.textContent = "Counting...";
+
+  try {
+    const res = await fetch(`/refresh_exact_count?user_email=${encodeURIComponent(userEmail)}`);
+    const data = await res.json();
+    if (data.error) {
+      document.getElementById("scan-status").textContent = `Error: ${data.message || data.error}`;
+    } else {
+      await loadStats();
+    }
+  } catch (e) {
+    document.getElementById("scan-status").textContent = "Failed to get exact count: " + e.message;
+  }
+
+  btn.disabled = false;
+  btn.textContent = originalText;
+}
+
+async function loadCurrentPage() {
+  const list = document.getElementById("email-list");
+  list.innerHTML = "<div class='loading-text'>Scanning this page...</div>";
+  document.getElementById("prev-btn").disabled = true;
+  document.getElementById("next-btn").disabled = true;
+
+  const token = tokenHistory[pageIndex];
+  let url = `/emails?user_email=${encodeURIComponent(userEmail)}&max_results=${pageSize}`;
+  if (token) url += `&page_token=${encodeURIComponent(token)}`;
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    renderEmails(data.emails || []);
+    nextTokenAvailable = data.next_page_token || null;
+
+    document.getElementById("prev-btn").disabled = pageIndex === 0;
+    document.getElementById("next-btn").disabled = !nextTokenAvailable;
+    document.getElementById("page-info").textContent = `Page ${pageIndex + 1}`;
+    updatePagesScannedNote();
+  } catch (e) {
+    list.innerHTML = `<div class="loading-text">Failed to load: ${e.message}</div>`;
+  }
+
+  loadStats();
+}
+
+function goNextPage() {
+  if (!nextTokenAvailable) return;
+  if (tokenHistory.length === pageIndex + 1) {
+    tokenHistory.push(nextTokenAvailable);
+  }
+  pageIndex++;
+  loadCurrentPage();
+}
+
+function goPrevPage() {
+  if (pageIndex === 0) return;
+  pageIndex--;
+  loadCurrentPage();
+}
+
+function scanTillPageFromInput() {
+  const input = document.getElementById("scan-till-input");
+  const target = parseInt(input.value, 10);
+  if (!target || target < 1) return;
+  scanTillPage(target);
+}
+
+async function scanTillPage(target) {
+  const targetIndex = target - 1;
+
+  if (targetIndex < tokenHistory.length) {
+    pageIndex = targetIndex;
+    loadCurrentPage();
+    return;
+  }
+
+  const list = document.getElementById("email-list");
+  document.getElementById("prev-btn").disabled = true;
+  document.getElementById("next-btn").disabled = true;
+  document.getElementById("scan-till-btn").disabled = true;
+  document.getElementById("visited-page-btn").disabled = true;
+
+  let walkIndex = tokenHistory.length - 1;
+
+  try {
+    while (walkIndex < targetIndex) {
+      const token = tokenHistory[walkIndex];
+      list.innerHTML = `<div class="loading-text">Scanning page ${walkIndex + 2} of ${target} on the way...</div>`;
+
+      let url = `/emails?user_email=${encodeURIComponent(userEmail)}&max_results=${pageSize}`;
+      if (token) url += `&page_token=${encodeURIComponent(token)}`;
+
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (!data.next_page_token && walkIndex + 1 < targetIndex) {
+        list.innerHTML = `<div class="loading-text">Reached the end of your inbox before page ${target}.</div>`;
+        document.getElementById("prev-btn").disabled = pageIndex === 0;
+        document.getElementById("next-btn").disabled = true;
+        document.getElementById("scan-till-btn").disabled = false;
+        document.getElementById("visited-page-btn").disabled = false;
+        updatePagesScannedNote();
+        return;
+      }
+
+      if (tokenHistory.length === walkIndex + 1) {
+        tokenHistory.push(data.next_page_token || null);
+      }
+
+      walkIndex++;
+      updatePagesScannedNote();
+      loadStats();
+    }
+
+    pageIndex = targetIndex;
+    loadCurrentPage();
+  } catch (e) {
+    list.innerHTML = `<div class="loading-text">Failed to reach page ${target}: ${e.message}</div>`;
+  }
+
+  document.getElementById("scan-till-btn").disabled = false;
+  document.getElementById("visited-page-btn").disabled = false;
+}
+
+function goToVisitedPageFromInput() {
+  const input = document.getElementById("visited-page-input");
+  const target = parseInt(input.value, 10);
+  if (!target || target < 1) return;
+
+  const targetIndex = target - 1;
+  if (targetIndex >= tokenHistory.length) {
+    document.getElementById("scan-status").textContent =
+      `Page ${target} hasn't been scanned yet — use "Scan till page" first.`;
+    return;
+  }
+
+  pageIndex = targetIndex;
+  loadCurrentPage();
+}
+
+async function loadFilteredEmails(level) {
+  const list = document.getElementById("email-list");
+  list.innerHTML = "<div class='loading-text'>Loading...</div>";
+  const res = await fetch(`/emails_by_risk?user_email=${encodeURIComponent(userEmail)}&risk_level=${level}`);
+  const data = await res.json();
+  renderEmails(data.emails || []);
+}
+
+function initials(fromField) {
+  const nameMatch = (fromField || "").match(/^"?([^"<]*)"?\s*</);
+  const name = nameMatch ? nameMatch[1].trim() : (fromField || "").split("@")[0];
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "??";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+function authClass(val) {
+  if (!val) return "";
+  const v = val.toLowerCase();
+  if (v === "pass") return "pass";
+  if (v === "fail") return "fail";
+  return "";
+}
+
+function renderEmails(emails) {
+  const list = document.getElementById("email-list");
+  list.innerHTML = "";
+
+  if (emails.length === 0) {
+    list.innerHTML = "<p style='color:#666;'>No emails to show here.</p>";
+    return;
+  }
+
+  emails.forEach((email, idx) => {
+    const level = email.risk?.risk_level || "low";
+    const score = email.risk?.risk_score ?? 0;
+    const card = document.createElement("div");
+    card.className = `email-card ${level}`;
+    const detailId = `details-${idx}-${Math.random().toString(36).slice(2, 8)}`;
+
+    let aiNote = "";
+    if (email.risk?.ai_reasoning) {
+      aiNote = `<div class="ai-note"><strong>${escapeHtml(email.risk.ai_verdict || "")}:</strong> ${escapeHtml(email.risk.ai_reasoning)}</div>`;
+    }
+
+    const fromRaw = email.from || "";
+    const displayName = fromRaw.split("<")[0].trim() || fromRaw;
+    const emailAddr = fromRaw.match(/<(.+)>/)?.[1] || fromRaw;
+
+    card.innerHTML = `
+      <div class="email-row" onclick="toggleDetails('${detailId}')">
+        <div class="avatar">${initials(fromRaw)}</div>
+        <div class="email-info">
+          <div class="email-sender">${escapeHtml(displayName)} <span>&lt;${escapeHtml(emailAddr)}&gt;</span></div>
+          <div class="email-subject">${escapeHtml(email.subject || "(no subject)")}</div>
+          ${aiNote}
+        </div>
+        <div class="badge ${level}">${level.toUpperCase()} · ${Math.round(score)}</div>
+        <div class="chevron" id="chevron-${detailId}">&#9656;</div>
+      </div>
+      <div class="email-details" id="${detailId}">
+        ${buildDetailsHtml(email)}
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+function buildDetailsHtml(email) {
+  const auth = `
+    <div class="detail-section">
+      <h4>Authentication</h4>
+      <div class="detail-grid">
+        <div class="detail-item"><div class="label">SPF</div><div class="value ${authClass(email.spf)}">${escapeHtml(email.spf || "unknown")}</div></div>
+        <div class="detail-item"><div class="label">DKIM</div><div class="value ${authClass(email.dkim)}">${escapeHtml(email.dkim || "unknown")}</div></div>
+        <div class="detail-item"><div class="label">DMARC</div><div class="value ${authClass(email.dmarc)}">${escapeHtml(email.dmarc || "unknown")}</div></div>
+        <div class="detail-item"><div class="label">Date</div><div class="value">${escapeHtml(email.date || "-")}</div></div>
+      </div>
+    </div>
+  `;
+
+  let geoHtml = "";
+  const geoList = email.geo || [];
+  const ipList = email.sender_ips || [];
+  if (geoList.length > 0 || ipList.length > 0) {
+    const items = geoList.length > 0 ? geoList : ipList.map(ip => ({ ip }));
+    geoHtml = `
+      <div class="detail-section">
+        <h4>Sender IP / Geolocation</h4>
+        ${items.map(g => `
+          <div class="geo-item">
+            <strong>${escapeHtml(g.ip || g.query || "unknown IP")}</strong>
+            ${g.location ? ` — ${escapeHtml(g.location)}` : (g.city || g.country ? ` — ${escapeHtml([g.city, g.region, g.country].filter(Boolean).join(", "))}` : " — location unavailable")}
+            ${g.isp ? ` · ISP: ${escapeHtml(g.isp)}` : ""}
+            ${g.org ? ` · Org: ${escapeHtml(g.org)}` : ""}
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  let contentHtml = "";
+  const c = email.content;
+  if (c) {
+    contentHtml = `
+      <div class="detail-section">
+        <h4>Content Analysis</h4>
+        <div class="detail-grid">
+          <div class="detail-item"><div class="label">Urgency score</div><div class="value">${c.urgency?.urgency_score ?? 0}</div></div>
+          <div class="detail-item"><div class="label">Link risk score</div><div class="value">${c.links?.link_score ?? 0}</div></div>
+          <div class="detail-item"><div class="label">Total links</div><div class="value">${c.links?.total_links ?? 0}</div></div>
+          <div class="detail-item"><div class="label">Sender/brand mismatch</div><div class="value ${c.sender_mismatch?.brand_mismatch ? 'fail' : 'pass'}">${c.sender_mismatch?.brand_mismatch ? "Yes" : "No"}</div></div>
+        </div>
+        ${(c.urgency?.matched_phrases?.length || c.links?.suspicious_links?.length) ? `
+          <div style="margin-top:10px;" class="flag-list">
+            ${(c.urgency?.matched_phrases || []).map(p => `<span class="flag-chip">"${escapeHtml(p)}"</span>`).join("")}
+            ${(c.links?.suspicious_links || []).map(l => `<span class="flag-chip">${escapeHtml(l)}</span>`).join("")}
+          </div>
+        ` : ""}
+      </div>
+    `;
+  }
+
+  let aiHtml = "";
+  if (email.risk?.ai_reasoning || email.risk?.ai_red_flags?.length) {
+    aiHtml = `
+      <div class="detail-section">
+        <h4>AI Assessment</h4>
+        <div class="detail-item" style="margin-bottom:8px;">
+          <div class="label">Verdict</div>
+          <div class="value">${escapeHtml(email.risk.ai_verdict || "-")}</div>
+        </div>
+        ${email.risk.ai_reasoning ? `<div class="body-preview-box">${escapeHtml(email.risk.ai_reasoning)}</div>` : ""}
+        ${(email.risk.ai_red_flags && email.risk.ai_red_flags.length) ? `
+          <div style="margin-top:10px;" class="flag-list">
+            ${email.risk.ai_red_flags.map(f => `<span class="flag-chip">${escapeHtml(f)}</span>`).join("")}
+          </div>
+        ` : ""}
+      </div>
+    `;
+  }
+
+  let bodyHtml = "";
+  if (email.body_preview) {
+    bodyHtml = `
+      <div class="detail-section">
+        <h4>Body preview</h4>
+        <div class="body-preview-box">${escapeHtml(email.body_preview)}</div>
+      </div>
+    `;
+  }
+
+  return auth + geoHtml + contentHtml + aiHtml + bodyHtml;
+}
+
+function toggleDetails(id) {
+  const el = document.getElementById(id);
+  const chevron = document.getElementById(`chevron-${id}`);
+  if (!el) return;
+  const isOpen = el.classList.toggle("open");
+  if (chevron) chevron.classList.toggle("open", isOpen);
+}
+
+async function scanAll() {
+  const btn = document.getElementById("scan-btn");
+  btn.disabled = true;
+  btn.textContent = "Scanning...";
+  let pageToken = null;
+  let done = false;
+  let waitSeconds = 30;
+
+  try {
+    while (!done) {
+      const url = `/scan_all?user_email=${encodeURIComponent(userEmail)}${pageToken ? `&page_token=${pageToken}` : ""}`;
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (data.error === "rate_limited") {
+        pageToken = data.resume_token || pageToken;
+        for (let remaining = waitSeconds; remaining > 0; remaining--) {
+          document.getElementById("scan-status").textContent =
+            `Gmail rate limit reached, resuming automatically in ${remaining}s...`;
+          await sleep(1000);
+        }
+        waitSeconds = Math.min(Math.round(waitSeconds * 1.5), 180);
+        continue;
+      }
+
+      if (data.error) {
+        document.getElementById("scan-status").textContent = `Error: ${data.message || data.error}`;
+        break;
+      }
+
+      waitSeconds = 30;
+      pageToken = data.next_page_token;
+      done = data.done;
+
+      document.getElementById("scan-status").textContent =
+        `${data.scanned_so_far ?? "?"} of ${data.total_mailbox ?? "?"} emails scanned (${data.skipped ?? 0} already scanned, skipped)`;
+      if (data.total_mailbox) {
+        const pct = Math.min(100, (data.scanned_so_far / data.total_mailbox) * 100);
+        document.getElementById("progress-fill").style.width = pct + "%";
+      }
+
+      loadStats();
+    }
+  } catch (e) {
+    document.getElementById("scan-status").textContent = "Scan failed: " + e.message;
+  }
+
+  btn.disabled = false;
+  btn.textContent = "Scan Entire Inbox";
+  loadStats();
+  if (!currentFilter) loadCurrentPage();
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+</script>
+
+</body>
+</html>
